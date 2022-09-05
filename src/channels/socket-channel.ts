@@ -4,6 +4,7 @@ import { Payload, User } from "../types";
 import Channel from ".";
 import { adapter } from "../database/redis.db";
 import AuthMiddleware from "../middlewares/auth.middleware";
+import axios from "axios";
 
 class SocketChannel extends Channel {
     io: any;
@@ -42,7 +43,7 @@ class SocketChannel extends Channel {
 
     async #connection(socket) {
         this.socket = socket;
-
+        console.log("handshake", socket.handshake)
         const user: User = User.fromSession({
             userID: socket.userID,
             address: socket.address,
@@ -97,7 +98,7 @@ class SocketChannel extends Channel {
 
         /** Set Custom Identifier */
         socket.on('setExtra', async (arg, callback) => {
-            const user = User.fromSession({ userID: socket.userID, address: socket.address, sessionID: socket.sessionID, connected: true, extra: arg.extra })
+            const user = User.fromSession({ userID: socket.userID, socketID : socket.id,address: socket.address, sessionID: socket.sessionID, connected: true, extra: arg.extra })
             this.addUser(user);
             if (typeof callback === 'function') {
                 return callback(user.toJSON());
@@ -126,18 +127,25 @@ class SocketChannel extends Channel {
     }
 
     #verifyServerAuthentication(channel, socket) {
-        // console.log('authentication...');
-        // axios.post(this.broadcastAuthUrl, {
-        //     channel_name: channel,
-        //     socket_id: socket.socket_id,
-        // }).then((response) => {
-        //     console.log(response);
-        //     // this.addChannel({ name: `private-${channel}` });
-        //     // this.socket.join(`private-${channel}`);
-        // }).catch((err) => {
-        //     console.log(err);
-        //     console.info("broadcast auth server does not exists...")
-        // })
+        console.log('authentication...');
+        console.log("🚀 ~ file: socket-channel.ts ~ line 129 ~ SocketChannel ~ #verifyServerAuthentication ~ channel",socket.sessionID)
+        const { sessionID,
+        userID,
+        address,
+        userExtra,
+       } = socket
+        axios.post(this.broadcastAuthUrl, {
+            channel_name: channel,
+            data : {sessionID , userID, address, userExtra}, 
+            socket_id: socket.socket_id,
+        }).then((response) => {
+            console.log(response);
+            this.addChannel({ name: `private-${channel}` });
+            this.socket.join(`private-${channel}`);
+        }).catch((err) => {
+            console.log(err);
+            console.info("broadcast auth server does not exists...")
+        })
     }
 
     async #broadcastStatus() {
